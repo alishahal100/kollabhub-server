@@ -16,10 +16,22 @@ const app = express();
 
 // Middleware
 app.use(helmet());
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://kollabhub.vercel.app',
+];
+
 app.use(cors({
-  origin: process.env.CLIENT_URL,
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS not allowed for this origin: ' + origin));
+    }
+  },
   credentials: true
 }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
