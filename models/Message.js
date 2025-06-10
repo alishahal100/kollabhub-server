@@ -2,14 +2,10 @@ import mongoose from "mongoose";
 
 const messageSchema = new mongoose.Schema(
   {
-    senderId: { type: String, required: true },
-    receiverId: { type: String, required: true },
+    senderId: { type: String, required: true }, // changed from ObjectId
+    receiverId: { type: String, required: true }, // changed from ObjectId
     content: { type: String, required: true },
-    campaignId: { type: String },
-    seen: {
-      type: Boolean,
-      default: false,
-    },
+    campaignId: { type: String }, // optional
   },
   { timestamps: true }
 );
