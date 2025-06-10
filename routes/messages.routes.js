@@ -1,17 +1,12 @@
-import express from "express";
+import express from 'express';
+import { sendMessage, markMessageAsSeen, getUserConversations, getMessagesBetweenUsers } from '../controllers/messages.controller.js';
+import authMiddleware from '../middlewares/authMiddleware.js';
 
-import {
-  sendMessage,
-  getMessagesBetweenUsers,
-  getUserConversations,
-} from "../controllers/messages.controller.js";
 const router = express.Router();
-import authMiddleware from "../middlewares/authMiddleware.js";
 
-
-// ✅ Place specific routes before dynamic ones
-router.get("/conversations/:userId",authMiddleware, getUserConversations);
-router.get("/:user1/:user2",authMiddleware, getMessagesBetweenUsers);
-router.post("/",authMiddleware, sendMessage);
+router.get("/conversations/:userId", authMiddleware, getUserConversations);
+router.post('/', authMiddleware, sendMessage);
+router.get('/:user1/:user2', authMiddleware, getMessagesBetweenUsers);
+router.patch('/:messageId/seen', authMiddleware, markMessageAsSeen);
 
 export default router;

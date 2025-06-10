@@ -1,21 +1,68 @@
 import Message from "../models/Message.js";
 
 // Send a message
-export const sendMessage = async (req, res) => {
+export const sendMessage = async (req, res, next) => {
   try {
-    const { senderId, receiverId, content, campaignId } = req.body;
+    const { receiverId, content, campaignId } = req.body;
+    const senderId = req.user._id;
+    const onlineUsers = req.app.get('onlineUsers');
 
-    if (!senderId || !receiverId || !content) {
-      return res.status(400).json({ error: "Missing required fields" });
+    const newMessage = await Message.create({
+      senderId,
+      receiverId,
+      content,
+      campaignId,
+      seen: false,
+    });
+
+    // Emit via socket if receiver is online
+    const receiverSocketId = onlineUsers?.get(receiverId.toString());
+    if (receiverSocketId && req.app.get('io')) {
+      req.app.get('io').to(receiverSocketId).emit('receiveMessage', newMessage);
     }
 
-    const message = new Message({ senderId, receiverId, content, campaignId });
+    // Notify sender of delivery
+    const senderSocketId = onlineUsers?.get(senderId.toString());
+    if (senderSocketId) {
+      req.app.get('io').to(senderSocketId).emit('messageDelivered', newMessage._id);
+    }
+
+    res.status(201).json(newMessage);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Mark a message as seen
+export const markMessageAsSeen = async (req, res, next) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+    const onlineUsers = req.app.get('onlineUsers');
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found' });
+    }
+
+    if (message.receiverId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    message.seen = true;
     await message.save();
 
-    return res.status(201).json(message);
-  } catch (error) {
-    console.error("Error sending message:", error);
-    return res.status(500).json({ error: "Failed to send message" });
+    // Notify sender
+    const senderSocketId = onlineUsers?.get(message.senderId.toString());
+    if (senderSocketId && req.app.get('io')) {
+      req.app.get('io').to(senderSocketId).emit('messageSeenUpdate', {
+        messageId: message._id,
+      });
+    }
+
+    res.status(200).json({ message: 'Marked as seen', messageId: message._id });
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -40,22 +87,17 @@ export const getMessagesBetweenUsers = async (req, res) => {
 
 // Get conversations list for a user
 export const getUserConversations = async (req, res) => {
-  const userId = req.params.userId.trim(); // trim in case of accidental space
+  const userId = req.params.userId.trim();
 
   try {
-    console.log("Searching conversations for:", userId);
-
     const messages = await Message.find({
       $or: [{ senderId: userId }, { receiverId: userId }],
     }).sort({ createdAt: -1 });
 
-    console.log("Found messages:", messages.length);
-
     const conversationsMap = new Map();
 
     for (const msg of messages) {
-      const otherUserId =
-        msg.senderId === userId ? msg.receiverId : msg.senderId;
+      const otherUserId = msg.senderId === userId ? msg.receiverId : msg.senderId;
 
       if (!conversationsMap.has(otherUserId)) {
         conversationsMap.set(otherUserId, {
@@ -68,8 +110,6 @@ export const getUserConversations = async (req, res) => {
     }
 
     const result = Array.from(conversationsMap.values());
-    console.log("Returning conversations:", result.length);
-
     return res.json(result);
   } catch (error) {
     console.error("Error fetching conversations:", error);
