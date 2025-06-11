@@ -9,7 +9,10 @@ import onboardingRouter from './routes/onboarding.routes.js';
 import errorHandler from './middlewares/errorHandler.js';
 import userRouter from './routes/user.routes.js';
 import campaignRouter from './routes/campaign.routes.js'; // Assuming you have a campaign router
-import messageRouter from './routes/messages.routes.js'; // Assuming you have a message router
+import messageRouter from './routes/messages.routes.js';// Assuming you have a message router
+
+import http from 'http';
+import { Server } from 'socket.io';
 dotenv.config();
 
 const app = express();
@@ -64,13 +67,33 @@ app.use(errorHandler);
 
 
 // Server Initialization
-const PORT = process.env.PORT || 5001;
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // replace with frontend URL in production
+    methods: ["GET", "POST"],
+  },
+});
 
-const startServer = async () => {
-  await connectDB();
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+io.on("connection", (socket) => {
+  console.log("🟢 New client connected:", socket.id);
+
+  socket.on("join", ({ userId }) => {
+    socket.join(userId); // Join their own room
   });
-};
 
-startServer();
+  socket.on("sendMessage", (message) => {
+    const { receiverId } = message;
+    io.to(receiverId).emit("receiveMessage", message); // Send to receiver only
+  });
+
+  socket.on("disconnect", () => {
+    console.log("🔴 Client disconnected:", socket.id);
+  });
+});
+
+connectDB().then(() => {
+  server.listen(5000, () => {
+    console.log("Server + Socket.IO running on port 5000");
+  });
+});
