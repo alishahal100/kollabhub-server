@@ -187,3 +187,32 @@ export const getCampaignById = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch campaign", error: error.message });
   }
 }    
+
+// Update campaign's active status
+export const updateCampaignStatus = async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    const { isActive } = req.body;
+
+    const campaign = await Campaign.findByIdAndUpdate(
+      campaignId,
+      { isActive },
+      { new: true }
+    );
+
+    if (!campaign) {
+      return res.status(404).json({ message: "Campaign not found" });
+    }
+
+    return res.status(200).json({
+      message: `Campaign ${isActive ? "activated" : "deactivated"} successfully`,
+      campaign
+    });
+  } catch (error) {
+    console.error("Error updating campaign status:", error);
+    return res.status(500).json({
+      message: "Failed to update campaign status",
+      error: error.message
+    });
+  }
+};

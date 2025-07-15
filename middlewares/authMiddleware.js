@@ -21,4 +21,21 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
+export const socketAuthMiddleware = (socket, next) => {
+  const token = socket.handshake.auth.token || socket.request.cookies?.token;
+  
+  if (!token) {
+    return next(new Error('Authentication error'));
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.user = decoded;
+    next();
+  } catch (error) {
+    console.error('Socket JWT verification failed:', error);
+    return next(new Error('Authentication error'));
+  }
+};
+
 export default authMiddleware;

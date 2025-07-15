@@ -8,7 +8,8 @@ import {
   getAppliedCampaigns,
   updateCampaign,
   updateApplicationStatus,
-  getCampaignById
+  getCampaignById,
+  updateCampaignStatus
 } from "../controllers/campaign.controller.js";
 
 import authMiddleware from "../middlewares/authMiddleware.js";
@@ -26,6 +27,6 @@ router.post("/apply/:campaignId", authMiddleware, applyToCampaign);
 router.get("/applied", authMiddleware, getAppliedCampaigns);
 router.put("/edit/:campaignId", authMiddleware, updateCampaign);
 router.get("/:campaignId", authMiddleware, getCampaignById);
+router.put("/update/status/:campaignId", authMiddleware, updateCampaignStatus);
 router.put("/:campaignId/:status/:creatorId", authMiddleware, updateApplicationStatus);
-
 export default router;

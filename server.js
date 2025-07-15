@@ -8,9 +8,10 @@ import cookieParser from 'cookie-parser';
 import onboardingRouter from './routes/onboarding.routes.js';
 import errorHandler from './middlewares/errorHandler.js';
 import userRouter from './routes/user.routes.js';
-import campaignRouter from './routes/campaign.routes.js'; // Assuming you have a campaign router
-import messageRouter from './routes/messages.routes.js';// Assuming you have a message router
-
+import campaignRouter from './routes/campaign.routes.js';
+import messageRouter from './routes/messages.routes.js';
+import authMiddleware from './middlewares/authMiddleware.js';
+import connectionRoutes from './routes/connection.routes.js';
 import http from 'http';
 import { Server } from 'socket.io';
 dotenv.config();
@@ -54,8 +55,10 @@ const connectDB = async () => {
 // Routes
 app.use('/api/users/onboarding', onboardingRouter);
 app.use('/api/users', userRouter);
-app.use('/api/campaigns',campaignRouter ); // Assuming you have a campaign router
-app.use('/api/messages',messageRouter)
+app.use('/api/campaigns', campaignRouter);
+app.use('/api/messages', messageRouter);
+app.use('/api/connections', connectionRoutes);
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
@@ -64,33 +67,57 @@ app.get('/api/health', (req, res) => {
 // Error Handling
 app.use(errorHandler);
 
-
-
 // Server Initialization
 const server = http.createServer(app);
+
+
+// Socket.IO Authentication
+
+
+// After your existing imports and middleware
 const io = new Server(server, {
   cors: {
-    origin: "*", // replace with frontend URL in production
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
+    credentials: true
   },
 });
 
-io.on("connection", (socket) => {
-  console.log("🟢 New client connected:", socket.id);
+// Simple auth middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (token) return next(); // Clerk handles actual auth
+  next(new Error("Authentication error"));
+});
 
-  socket.on("join", ({ userId }) => {
-    socket.join(userId); // Join their own room
+io.on("connection", (socket) => {
+  console.log("🟢 New connection:", socket.id);
+
+  // Join user's personal room
+  socket.on("join", (userId) => {
+    if (userId) {
+      socket.join(userId);
+      console.log(`✅ User ${userId} joined their room`);
+    }
   });
 
+  // Handle messages
   socket.on("sendMessage", (message) => {
-    const { receiverId } = message;
-    io.to(receiverId).emit("receiveMessage", message); // Send to receiver only
+    const { receiverId, senderId } = message;
+    
+    // Broadcast to both parties
+    io.to(receiverId).emit("receiveMessage", message);
+    io.to(senderId).emit("receiveMessage", message);
+    
+    console.log(`📩 Message from ${senderId} to ${receiverId}`);
   });
 
   socket.on("disconnect", () => {
-    console.log("🔴 Client disconnected:", socket.id);
+    console.log("🔴 Disconnected:", socket.id);
   });
 });
+
+
 
 connectDB().then(() => {
   server.listen(5000, () => {
